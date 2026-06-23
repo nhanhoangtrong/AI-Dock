@@ -217,6 +217,11 @@ fn toggle_popover(
             eprintln!("ai-dock: hide failed: {e}");
         }
     } else {
+        // macOS: tell the NSWindow to follow the active Space so clicking the
+        // tray icon from any desktop shows the popover there, not the last one.
+        #[cfg(target_os = "macos")]
+        move_window_to_active_space(&window);
+
         if let Some(r) = rect {
             position_under_tray(&window, &r);
         }
@@ -240,6 +245,10 @@ fn toggle_popover(
 
 /// Place the popover centered horizontally under the tray icon, just below it.
 /// Falls back to the current position if anything goes wrong.
+///
+/// Multi-monitor aware: finds the monitor containing the tray icon and clamps
+/// the popover within that monitor's bounds (handles displays to the
+/// left/right/above/below the primary, which have negative coordinates).
 fn position_under_tray(window: &tauri::WebviewWindow, rect: &tauri::Rect) {
     // TrayIconEvent::Click.rect carries physical pixels on macOS.
     let (icon_x, icon_y, icon_w, icon_h) = match (rect.position, rect.size) {
@@ -249,15 +258,12 @@ fn position_under_tray(window: &tauri::WebviewWindow, rect: &tauri::Rect) {
         _ => return,
     };
 
-    let scale = window.scale_factor().unwrap_or(1.0);
     let win_size = window
         .outer_size()
         .unwrap_or(PhysicalSize::new(320, 240));
 
-    // Outer size is in physical pixels already; no extra scale factor here.
     let pop_w = win_size.width as i32;
     let pop_h = win_size.height as i32;
-    let _ = (scale, pop_h); // scale reserved for future logical sizing
 
     let icon_center_x = icon_x + (icon_w as i32) / 2;
     let icon_bottom_y = icon_y + icon_h as i32;
@@ -265,16 +271,68 @@ fn position_under_tray(window: &tauri::WebviewWindow, rect: &tauri::Rect) {
     let mut x = icon_center_x - pop_w / 2;
     let mut y = icon_bottom_y + 4;
 
-    // Keep on-screen with a small margin from the screen origin.
-    let margin = 8;
-    if x < margin {
-        x = margin;
-    }
-    if y < margin {
-        y = margin;
+    // Find the monitor that contains the tray icon and clamp within it.
+    // This is critical for multi-monitor setups where a secondary display
+    // sits to the left or above the primary (negative global coordinates);
+    // the old origin-based clamp forced the popover back onto the primary.
+    let monitors = window.available_monitors().unwrap_or_default();
+    eprintln!(
+        "ai-dock: tray icon at ({icon_x},{icon_y}) {icon_w}x{icon_h}; popover {pop_w}x{pop_h}; {} monitor(s)",
+        monitors.len()
+    );
+    for m in &monitors {
+        let mp = m.position();
+        let ms = m.size();
+        let (mx, my, mw, mh) = (mp.x, mp.y, ms.width as i32, ms.height as i32);
+        eprintln!(
+            "ai-dock:   monitor at ({mx},{my}) {mw}x{mh} name={:?}",
+            m.name()
+        );
+        if icon_center_x >= mx && icon_center_x < mx + mw
+            && icon_bottom_y >= my && icon_bottom_y < my + mh
+        {
+            // Clamp popover within this monitor, with a small margin.
+            let margin = 4;
+            if x < mx + margin {
+                x = mx + margin;
+            }
+            if x + pop_w > mx + mw - margin {
+                x = mx + mw - margin - pop_w;
+            }
+            if y < my + margin {
+                y = my + margin;
+            }
+            if y + pop_h > my + mh - margin {
+                y = my + mh - margin - pop_h;
+            }
+            eprintln!("ai-dock: clamped to monitor ({mx},{my}); final pos ({x},{y})");
+            break;
+        }
     }
 
     if let Err(e) = window.set_position(Position::Physical(PhysicalPosition::new(x, y))) {
         eprintln!("ai-dock: set_position failed: {e}");
+    }
+}
+
+/// macOS: set the NSWindow's collection behavior so it moves to the active
+/// Space when shown, rather than remembering the Space it was last on.
+#[cfg(target_os = "macos")]
+fn move_window_to_active_space(window: &tauri::WebviewWindow) {
+    use objc2::msg_send;
+    use objc2::runtime::Object;
+
+    unsafe {
+        let ns_window: *mut std::ffi::c_void = match window.ns_window() {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+        let ns_window = ns_window as *mut Object;
+        if !ns_window.is_null() {
+            // NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1 = 2
+            // NSWindowCollectionBehaviorManaged = 1 << 2 = 4
+            let behavior: u64 = 2 | 4;
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        }
     }
 }
