@@ -26,3 +26,4 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5"
 objc2 = "0.6"
+sha2 = "0.10"

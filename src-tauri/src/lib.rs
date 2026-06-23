@@ -13,6 +13,7 @@
 //!     popover doesn't close-then-immediately-reopen (§1.3 flicker guard).
 
 mod codex;
+mod claude;
 mod config;
 mod deepseek;
 mod openrouter;

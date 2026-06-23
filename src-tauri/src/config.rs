@@ -21,7 +21,7 @@ pub struct Config {
     pub provider_visibility: BTreeMap<String, bool>,
 }
 
-pub const KNOWN_PROVIDERS: &[&str] = &["codex", "openrouter", "deepseek"];
+pub const KNOWN_PROVIDERS: &[&str] = &["codex", "claude", "openrouter", "deepseek"];
 
 impl Config {
     /// Missing provider entries default to visible so new providers appear
@@ -93,6 +93,7 @@ mod tests {
         let cfg = Config::default();
 
         assert_eq!(cfg.provider_visibility("codex"), true);
+        assert_eq!(cfg.provider_visibility("claude"), true);
         assert_eq!(cfg.provider_visibility("openrouter"), true);
         assert_eq!(cfg.provider_visibility("deepseek"), true);
     }

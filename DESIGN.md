@@ -9,11 +9,14 @@ A macOS menu-bar app that surfaces Codex rate-limit status and OpenRouter credit
 - **Popover hides on:** window blur, Escape key, tray-icon toggle. No auto-timeout. Just-toggled flag prevents close-then-reopen flicker.
 - **No auto-launch at login.** No `tauri-plugin-autostart`.
 
-## Popover content (3 rows)
+## Popover content
 
 1. **Codex Primary window** (5h rolling): filled bar of `used_percent`, `reset_at` timestamp. Bar color escalates near the cap.
 2. **Codex Secondary window** (7d rolling): filled bar of `used_percent`, `reset_at` timestamp.
 3. **OpenRouter credits**: a bar in a **distinct treatment** from the Codex bars (same shape family, visually distinguishable — outline/ghost or neutral color, TBD at implementation), plus literal `$used / $total` text. Fill ratio = `total_usage / total_credits`.
+4. **DeepSeek balance**: remaining balance text only; no bar because DeepSeek does not provide a total-limit denominator.
+5. **Claude Code Primary window** (5h rolling): filled bar of `five_hour.utilization`, `resets_at` timestamp.
+6. **Claude Code Secondary window** (7d rolling): filled bar of `seven_day.utilization`, `resets_at` timestamp.
 
 Plus: a **manual refresh button**; a **settings affordance** for the OpenRouter key (config-file path, see below).
 
@@ -21,6 +24,8 @@ Plus: a **manual refresh button**; a **settings affordance** for the OpenRouter 
 
 - **Codex:** read the latest `codex.rate_limits` event from `~/.codex/logs_2.sqlite`. Structured JSON: `plan_type`, `rate_limits.{allowed, limit_reached, primary, secondary}` each with `{used_percent, window_minutes, reset_after_seconds, reset_at}`. No network, no auth, no `~/.codex/auth.json` access. See ADR-0001.
 - **OpenRouter:** `GET https://openrouter.ai/api/v1/credits`, Bearer auth with a **management key** (not a chat key — the docs flag this endpoint as management-key-gated). Response: `{ data: { total_credits, total_usage } }`. Remaining is derived as `total_credits - total_usage`.
+- **DeepSeek:** account balance API using the user's DeepSeek API key from config. Displays remaining balance only.
+- **Claude Code:** `GET https://api.anthropic.com/api/oauth/usage` with Claude Code OAuth credentials and `anthropic-beta: oauth-2025-04-20`. Displays real `five_hour` and `seven_day` utilization and reset timestamps. This API is reverse-engineered and undocumented; see ADR-0004.
 
 ## Credential storage
 
@@ -48,6 +53,7 @@ src-tauri/src/
   codex.rs             # query ~/.codex/logs_2.sqlite for latest rate_limits event
   openrouter.rs        # GET /api/v1/credits
   status.rs            # combined Status payload type + poll loop + emit status-update
+  claude.rs            # read Claude Code OAuth credentials + GET /api/oauth/usage
 src/
   main.tsx             # unchanged
   App.tsx              # replace boilerplate with popover renderer
@@ -104,3 +110,4 @@ rsvg-convert -w 32 -h 32 src-tauri/icon-source/tray.svg  -o src-tauri/icons/tray
 | Q13 | Popover hides on blur + Esc + tray-toggle | session |
 | Q14 | No auto-launch at login | session |
 | Q15 | Rust owns poll loop, frontend pure renderer | session |
+| Q16 | Claude Code usage source = reverse-engineered OAuth usage API | ADR-0004 |

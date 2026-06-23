@@ -14,6 +14,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Notify;
 
+use crate::claude::{self, ClaudeStatus};
 use crate::codex::{self, CodexStatus};
 use crate::config;
 use crate::deepseek::{self, DeepSeekStatus};
@@ -26,6 +27,7 @@ pub const POLL_INTERVAL_SECS: u64 = 300;
 #[derive(Debug, Clone, Serialize)]
 pub struct StatusUpdate {
     pub codex: CodexStatus,
+    pub claude: ClaudeStatus,
     pub openrouter: OpenRouterStatus,
     pub deepseek: DeepSeekStatus,
     pub polled_at: i64, // unix epoch seconds
@@ -41,17 +43,20 @@ pub async fn run_cycle(app: &AppHandle) -> StatusUpdate {
             message: format!("Codex: poll task panicked: {e}"),
         });
 
-    // 2. OpenRouter + DeepSeek — re-read config so hand edits take effect.
+    // 2. OpenRouter + DeepSeek + Claude Code — re-read config so hand edits
+    //    take effect. Claude Code uses its own OAuth credential source.
     let cfg = config::read();
     let or_fut = openrouter::fetch(cfg.openrouter_key.as_deref());
     let ds_fut = deepseek::fetch(cfg.deepseek_key.as_deref());
+    let claude_fut = claude::fetch();
 
-    // Fire both fetches concurrently.
-    let (or_status, ds_status) = tokio::join!(or_fut, ds_fut);
+    // Fire network fetches concurrently.
+    let (or_status, ds_status, claude_status) = tokio::join!(or_fut, ds_fut, claude_fut);
 
     // 3. Build + emit.
     let update = StatusUpdate {
         codex: codex_status,
+        claude: claude_status,
         openrouter: or_status,
         deepseek: ds_status,
         polled_at: now_unix_secs(),

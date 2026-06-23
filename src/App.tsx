@@ -47,6 +47,24 @@ type CodexStatus =
       message: string;
     };
 
+type ClaudeStatus =
+  | {
+      kind: "ok";
+      five_hour: WindowStatus;
+      seven_day: WindowStatus;
+      seven_day_opus?: WindowStatus;
+      seven_day_omelette?: WindowStatus;
+    }
+  | { kind: "error"; message: string }
+  | {
+      kind: "stale";
+      five_hour: WindowStatus;
+      seven_day: WindowStatus;
+      seven_day_opus?: WindowStatus;
+      seven_day_omelette?: WindowStatus;
+      message: string;
+    };
+
 type OpenRouterStatus =
   | {
       kind: "ok";
@@ -75,6 +93,7 @@ type DeepSeekStatus =
 
 type StatusUpdate = {
   codex: CodexStatus;
+  claude: ClaudeStatus;
   openrouter: OpenRouterStatus;
   deepseek: DeepSeekStatus;
   polled_at: number;
@@ -82,6 +101,10 @@ type StatusUpdate = {
 
 const EMPTY_PAYLOAD: StatusUpdate = {
   codex: { kind: "error", message: "Codex: no rate-limit data yet." },
+  claude: {
+    kind: "error",
+    message: "Claude Code: no credentials found — run Claude Code once.",
+  },
   openrouter: {
     kind: "error",
     message: "OpenRouter: no key — add one in settings.",
@@ -211,6 +234,10 @@ export default function App() {
     () => buildCodexRows(status.codex, nowSec()),
     [status],
   );
+  const claudeRow = useMemo(
+    () => buildClaudeRows(status.claude, nowSec()),
+    [status],
+  );
   const openrouterRow = useMemo(
     () => buildOpenRouterRow(status.openrouter),
     [status],
@@ -230,6 +257,15 @@ export default function App() {
       ),
     },
     {
+      id: "claude" as const,
+      rows: (
+        <>
+          <Row {...claudeRow.fiveHour} />
+          <Row {...claudeRow.weekly} />
+        </>
+      ),
+    },
+    {
       id: "openrouter" as const,
       rows: <Row {...openrouterRow} />,
     },
@@ -241,16 +277,18 @@ export default function App() {
 
   return (
     <div className="popover">
-      {providerGroups.length > 0 ? (
-        providerGroups.map((group, index) => (
-          <Fragment key={group.id}>
-            {index > 0 ? <div className="popover-divider" /> : null}
-            {group.rows}
-          </Fragment>
-        ))
-      ) : (
-        <div className="popover-empty">No providers visible</div>
-      )}
+      <div className="provider-list">
+        {providerGroups.length > 0 ? (
+          providerGroups.map((group, index) => (
+            <Fragment key={group.id}>
+              {index > 0 ? <div className="popover-divider" /> : null}
+              {group.rows}
+            </Fragment>
+          ))
+        ) : (
+          <div className="popover-empty">No providers visible</div>
+        )}
+      </div>
       <div className="popover-footer">
         <button
           type="button"
@@ -356,6 +394,55 @@ function buildOpenRouterRow(or: OpenRouterStatus) {
     state: or.kind === "stale" ? ("stale" as const) : ("ok" as const),
     text: `${formatMoney(or.total_usage)} / ${formatMoney(or.total_credits)}`,
     caption: or.kind === "stale" ? or.message : undefined,
+  };
+}
+
+function buildClaudeRows(claude: ClaudeStatus, now: number) {
+  if (claude.kind === "error") {
+    return {
+      fiveHour: {
+        label: "Claude Code · 5h window",
+        fill: 0,
+        variant: "filled" as const,
+        state: "error" as const,
+        caption: claude.message,
+      },
+      weekly: {
+        label: "Claude Code · weekly window",
+        fill: 0,
+        variant: "filled" as const,
+        state: "error" as const,
+        caption: claude.message,
+      },
+    };
+  }
+
+  const base = {
+    variant: "filled" as const,
+    badge: "subscription",
+    state: claude.kind === "stale" ? ("stale" as const) : ("ok" as const),
+    caption: claude.kind === "stale" ? claude.message : undefined,
+  };
+
+  return {
+    fiveHour: {
+      ...base,
+      label: "Claude Code · 5h window",
+      fill: claude.five_hour.used_percent,
+      text: `${Math.round(claude.five_hour.used_percent)}% · ${formatResetAt(
+        claude.five_hour.reset_at,
+        now,
+      )}`,
+    },
+    weekly: {
+      ...base,
+      label: "Claude Code · weekly window",
+      fill: claude.seven_day.used_percent,
+      text: `${Math.round(claude.seven_day.used_percent)}% · ${formatResetAt(
+        claude.seven_day.reset_at,
+        now,
+      )}`,
+    },
   };
 }
 

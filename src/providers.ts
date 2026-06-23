@@ -1,5 +1,6 @@
 export const PROVIDERS = [
   { id: "codex", label: "Codex" },
+  { id: "claude", label: "Claude Code (OAuth from Keychain)" },
   { id: "openrouter", label: "OpenRouter" },
   { id: "deepseek", label: "DeepSeek" },
 ] as const;

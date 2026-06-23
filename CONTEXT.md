@@ -19,3 +19,7 @@ _Avoid_: 7d limit, long window, weekly limit
 **OpenRouter credits**:
 The documented GET `/api/v1/credits` response shape: `{total_credits, total_usage}`. Remaining is derived as `total_credits - total_usage`.
 _Avoid_: balance, wallet, budget
+
+**Claude Code subscription usage**:
+Claude Code's OAuth-backed subscription utilization windows, distinct from Anthropic Platform API usage or spend. The app reads the reverse-engineered `/api/oauth/usage` response for `five_hour` and `seven_day` utilization.
+_Avoid_: Claude API usage, Anthropic API spend, token count
