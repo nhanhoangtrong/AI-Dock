@@ -72,6 +72,15 @@ body {
   margin: 2px 0;
 }
 
+.popover-empty {
+  min-height: 142px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
 .popover-footer {
   margin-top: auto;
   display: flex;

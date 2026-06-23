@@ -1,13 +1,18 @@
 /**
- * Settings.tsx — key entry for OpenRouter and DeepSeek credentials (§1.4, §3).
+ * Settings.tsx — API key entry and provider visibility controls.
  *
  * Keys never cross back to the frontend after save (Rust re-reads the config
- * file on every poll). Each input has its own Save button; acknowledgment is
- * purely a UI signal — no payload comes back.
+ * file on every poll). Provider toggles are generic so future providers can
+ * reuse the same visibility flow.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  PROVIDERS,
+  type ProviderId,
+  type ProviderVisibility,
+} from "../providers";
 import "./Settings.css";
 
 type View = "closed" | "open";
@@ -23,7 +28,15 @@ function emptyKey(): KeyState {
   return { draft: "", saved: false, error: null };
 }
 
-export function Settings() {
+interface SettingsProps {
+  providerVisibility: ProviderVisibility;
+  onProviderVisibilityChange: (provider: ProviderId, visible: boolean) => void;
+}
+
+export function Settings({
+  providerVisibility,
+  onProviderVisibilityChange,
+}: SettingsProps) {
   const [view, setView] = useState<View>("closed");
   const [target, setTarget] = useState<KeyTarget>(null);
   const [or, setOr] = useState<KeyState>(emptyKey);
@@ -121,7 +134,7 @@ export function Settings() {
       />
       <div className="settings-card">
         <div className="settings-card-header">
-          <span className="settings-card-title">API keys</span>
+          <span className="settings-card-title">Settings</span>
           <button
             type="button"
             className="settings-card-close"
@@ -132,10 +145,12 @@ export function Settings() {
           </button>
         </div>
 
+        <div className="settings-group-title">API keys</div>
+
         {/* ---- OpenRouter ---- */}
         <div className="settings-section">
           <label className="settings-label" htmlFor="or-key">
-            OpenRouter
+            OpenRouter (management key)
           </label>
           <div className="settings-row">
             <input
@@ -145,7 +160,9 @@ export function Settings() {
               className="settings-input"
               placeholder="sk-or-v1-..."
               value={or.draft}
-              onChange={(e) => setOr({ draft: e.target.value, saved: false, error: null })}
+              onChange={(e) =>
+                setOr({ draft: e.target.value, saved: false, error: null })
+              }
               onKeyDown={(e) => onKeyDown(e, "openrouter", or.draft, setOr)}
               autoComplete="off"
               spellCheck={false}
@@ -160,15 +177,12 @@ export function Settings() {
             </button>
           </div>
           {or.error ? <div className="settings-error">{or.error}</div> : null}
-          <div className="settings-hint">
-            Use a <strong>management key</strong> (not a chat key).
-          </div>
         </div>
 
         {/* ---- DeepSeek ---- */}
         <div className="settings-section">
           <label className="settings-label" htmlFor="ds-key">
-            DeepSeek
+            DeepSeek (API key)
           </label>
           <div className="settings-row">
             <input
@@ -178,7 +192,9 @@ export function Settings() {
               className="settings-input"
               placeholder="sk-..."
               value={ds.draft}
-              onChange={(e) => setDs({ draft: e.target.value, saved: false, error: null })}
+              onChange={(e) =>
+                setDs({ draft: e.target.value, saved: false, error: null })
+              }
               onKeyDown={(e) => onKeyDown(e, "deepseek", ds.draft, setDs)}
               autoComplete="off"
               spellCheck={false}
@@ -193,12 +209,30 @@ export function Settings() {
             </button>
           </div>
           {ds.error ? <div className="settings-error">{ds.error}</div> : null}
-          <div className="settings-hint">
-            Your DeepSeek API key from{" "}
-            <a href="https://platform.deepseek.com" target="_blank" rel="noopener">
-              platform.deepseek.com
-            </a>
-            .
+        </div>
+
+        {/* ---- Providers ---- */}
+        <div className="settings-section">
+          <div className="settings-group-title">Providers</div>
+          <div className="provider-toggle-list">
+            {PROVIDERS.map((provider) => (
+              <label className="provider-toggle-row" key={provider.id}>
+                <span className="provider-toggle-label">{provider.label}</span>
+                <span className="provider-toggle-control">
+                  <input
+                    type="checkbox"
+                    className="provider-toggle-input"
+                    checked={providerVisibility[provider.id]}
+                    onChange={(e) =>
+                      onProviderVisibilityChange(provider.id, e.target.checked)
+                    }
+                  />
+                  <span className="provider-toggle-track" aria-hidden="true">
+                    <span className="provider-toggle-thumb" />
+                  </span>
+                </span>
+              </label>
+            ))}
           </div>
         </div>
 

@@ -18,6 +18,7 @@ mod deepseek;
 mod openrouter;
 mod status;
 
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -87,6 +88,28 @@ fn set_deepseek_key(key: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Read the provider visibility map for the settings UI and row filtering.
+/// Missing entries are expanded with show-by-default values for known providers.
+#[tauri::command]
+fn get_provider_visibility() -> BTreeMap<String, bool> {
+    config::read().provider_visibility_map()
+}
+
+/// Persist a provider visibility override. Provider ids are intentionally
+/// generic so future providers can reuse the same config field and command.
+#[tauri::command]
+fn set_provider_visibility(provider: String, visible: bool) -> Result<(), String> {
+    let provider = provider.trim();
+    if provider.is_empty() {
+        return Err("Provider id cannot be empty".into());
+    }
+    let mut cfg = config::read();
+    cfg.set_provider_visibility(provider, visible);
+    config::write(&cfg)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// Quit the application entirely.
 #[tauri::command]
 fn quit_app(app: AppHandle) {
@@ -118,6 +141,8 @@ pub fn run() {
             refresh_now,
             set_openrouter_key,
             set_deepseek_key,
+            get_provider_visibility,
+            set_provider_visibility,
             quit_app,
             hide_popover,
         ])

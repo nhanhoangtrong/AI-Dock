@@ -6,6 +6,7 @@
 //! Created lazily on first write; never created at launch if absent.
 //! Hand-editable; re-read on each poll so external edits take effect.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,35 @@ pub struct Config {
     pub openrouter_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deepseek_key: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub provider_visibility: BTreeMap<String, bool>,
+}
+
+pub const KNOWN_PROVIDERS: &[&str] = &["codex", "openrouter", "deepseek"];
+
+impl Config {
+    /// Missing provider entries default to visible so new providers appear
+    /// automatically until the user explicitly hides them.
+    pub fn provider_visibility(&self, provider: &str) -> bool {
+        self.provider_visibility
+            .get(provider)
+            .copied()
+            .unwrap_or(true)
+    }
+
+    pub fn set_provider_visibility(&mut self, provider: &str, visible: bool) {
+        self.provider_visibility
+            .insert(provider.to_string(), visible);
+    }
+
+    pub fn provider_visibility_map(&self) -> BTreeMap<String, bool> {
+        let mut out = self.provider_visibility.clone();
+        for provider in KNOWN_PROVIDERS {
+            out.entry((*provider).to_string())
+                .or_insert_with(|| self.provider_visibility(provider));
+        }
+        out
+    }
 }
 
 /// Path to the config file. Does not guarantee the file exists.
@@ -49,8 +79,30 @@ pub fn write(cfg: &Config) -> Result<PathBuf, String> {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("create config dir {}: {e}", parent.display()))?;
     }
-    let json = serde_json::to_vec_pretty(cfg)
-        .map_err(|e| format!("serialize config: {e}"))?;
+    let json = serde_json::to_vec_pretty(cfg).map_err(|e| format!("serialize config: {e}"))?;
     std::fs::write(&path, json).map_err(|e| format!("write config {}: {e}", path.display()))?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_visibility_defaults_to_showing_all_known_providers() {
+        let cfg = Config::default();
+
+        assert_eq!(cfg.provider_visibility("codex"), true);
+        assert_eq!(cfg.provider_visibility("openrouter"), true);
+        assert_eq!(cfg.provider_visibility("deepseek"), true);
+    }
+
+    #[test]
+    fn provider_visibility_uses_explicit_saved_override() {
+        let mut cfg = Config::default();
+        cfg.set_provider_visibility("openrouter", false);
+
+        assert_eq!(cfg.provider_visibility("openrouter"), false);
+        assert_eq!(cfg.provider_visibility("codex"), true);
+    }
 }

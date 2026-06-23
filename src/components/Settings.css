@@ -1,4 +1,4 @@
-/* Settings.css — OpenRouter key entry. */
+/* Settings.css — API key entry and provider visibility controls. */
 
 .settings-toggle {
   display: inline-flex;
@@ -49,6 +49,7 @@
   position: relative;
   width: calc(100% - 24px);
   max-width: 280px;
+  max-height: calc(100% - 16px);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -59,6 +60,30 @@
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.24),
     0 8px 24px rgba(0, 0, 0, 0.36);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.settings-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-card::-webkit-scrollbar-thumb {
+  min-height: 24px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.14);
+  background-clip: content-box;
+}
+
+.settings-card::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.24);
 }
 
 .settings-card-header {
@@ -73,6 +98,18 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--text);
+}
+
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .settings-card-close {
@@ -150,17 +187,85 @@
   color: var(--accent-critical);
 }
 
-.settings-hint {
+.provider-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.provider-toggle-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.provider-toggle-control {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.provider-toggle-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.provider-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.provider-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.provider-toggle-input:checked + .provider-toggle-track {
+  background: rgba(79, 140, 255, 0.28);
+  border-color: rgba(79, 140, 255, 0.5);
+}
+
+.provider-toggle-input:checked + .provider-toggle-track .provider-toggle-thumb {
+  transform: translateX(14px);
+  background: var(--accent);
+}
+
+.provider-toggle-input:focus-visible + .provider-toggle-track {
+  outline: 2px solid rgba(79, 140, 255, 0.45);
+  outline-offset: 2px;
+}
+
+.settings-footer-hint {
   font-size: 10px;
   color: var(--text-faint);
   line-height: 1.4;
 }
 
-.settings-hint code {
+.settings-footer-hint code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 10px;
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0 4px;
-  border-radius: 3px;
 }

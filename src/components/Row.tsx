@@ -1,9 +1,5 @@
 /**
- * Row.tsx — one of the three rows in the popover (§1.4):
- *
- *   - Codex Primary window
- *   - Codex Secondary window
- *   - OpenRouter credits
+ * Row.tsx — one status row in the popover (§1.4).
  *
  * Each row renders:
  *   - a label on the left

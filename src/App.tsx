@@ -2,16 +2,22 @@
  * App.tsx — popover shell.
  *
  * Subscribes to the `status-update` event emitted by the Rust poll loop
- * (§5.1, §6) and renders three rows + a footer (refresh button, settings).
- * The frontend never polls, fetches, or reads files (§5).
+ * (§5.1, §6) and renders visible provider rows + a footer (refresh button,
+ * settings). The frontend never polls, fetches, or reads files (§5).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { Row } from "./components/Row";
 import { Settings } from "./components/Settings";
+import {
+  defaultProviderVisibility,
+  type ProviderId,
+  type ProviderVisibility,
+  withProviderVisibilityDefaults,
+} from "./providers";
 import "./App.css";
 
 // ---------- Payload types — mirror the Rust contract (§6) ----------
@@ -124,6 +130,8 @@ function nowSec(): number {
 export default function App() {
   const [status, setStatus] = useState<StatusUpdate>(EMPTY_PAYLOAD);
   const [refreshing, setRefreshing] = useState(false);
+  const [providerVisibility, setProviderVisibility] =
+    useState<ProviderVisibility>(defaultProviderVisibility);
 
   // Subscribe to status-update events from Rust (§5.1).
   useEffect(() => {
@@ -133,6 +141,20 @@ export default function App() {
     });
     return () => {
       void unlistenP.then((u) => u());
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void invoke<Record<string, boolean>>("get_provider_visibility")
+      .then((visibility) => {
+        if (alive) {
+          setProviderVisibility(withProviderVisibilityDefaults(visibility));
+        }
+      })
+      .catch((e) => console.error("get_provider_visibility failed", e));
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -162,6 +184,27 @@ export default function App() {
     }
   }, []);
 
+  const onProviderVisibilityChange = useCallback(
+    async (provider: ProviderId, visible: boolean) => {
+      let previous = true;
+      setProviderVisibility((current) => {
+        previous = current[provider];
+        return { ...current, [provider]: visible };
+      });
+
+      try {
+        await invoke("set_provider_visibility", { provider, visible });
+      } catch (e) {
+        console.error("set_provider_visibility failed", e);
+        setProviderVisibility((current) => ({
+          ...current,
+          [provider]: previous,
+        }));
+      }
+    },
+    [],
+  );
+
   // ---- Derived view-model ----
 
   const codexRow = useMemo(
@@ -176,15 +219,38 @@ export default function App() {
     () => buildDeepSeekRow(status.deepseek),
     [status],
   );
+  const providerGroups = [
+    {
+      id: "codex" as const,
+      rows: (
+        <>
+          <Row {...codexRow.primary} />
+          <Row {...codexRow.secondary} />
+        </>
+      ),
+    },
+    {
+      id: "openrouter" as const,
+      rows: <Row {...openrouterRow} />,
+    },
+    {
+      id: "deepseek" as const,
+      rows: <Row {...deepseekRow} />,
+    },
+  ].filter((group) => providerVisibility[group.id]);
 
   return (
     <div className="popover">
-      <Row {...codexRow.primary} />
-      <Row {...codexRow.secondary} />
-      <div className="popover-divider" />
-      <Row {...openrouterRow} />
-      <div className="popover-divider" />
-      <Row {...deepseekRow} />
+      {providerGroups.length > 0 ? (
+        providerGroups.map((group, index) => (
+          <Fragment key={group.id}>
+            {index > 0 ? <div className="popover-divider" /> : null}
+            {group.rows}
+          </Fragment>
+        ))
+      ) : (
+        <div className="popover-empty">No providers visible</div>
+      )}
       <div className="popover-footer">
         <button
           type="button"
@@ -198,7 +264,10 @@ export default function App() {
           <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
         </button>
         <div className="footer-actions">
-          <Settings />
+          <Settings
+            providerVisibility={providerVisibility}
+            onProviderVisibilityChange={onProviderVisibilityChange}
+          />
           <button
             type="button"
             className="quit-button"
