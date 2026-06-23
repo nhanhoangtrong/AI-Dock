@@ -57,15 +57,27 @@ type OpenRouterStatus =
       message: string;
     };
 
+type DeepSeekStatus =
+  | { kind: "ok"; total_balance: number; currency: string }
+  | { kind: "error"; message: string }
+  | {
+      kind: "stale";
+      total_balance: number;
+      currency: string;
+      message: string;
+    };
+
 type StatusUpdate = {
   codex: CodexStatus;
   openrouter: OpenRouterStatus;
+  deepseek: DeepSeekStatus;
   polled_at: number;
 };
 
 const EMPTY_PAYLOAD: StatusUpdate = {
   codex: { kind: "error", message: "Codex: no rate-limit data yet." },
   openrouter: { kind: "error", message: "OpenRouter: no key — add one in settings." },
+  deepseek: { kind: "error", message: "DeepSeek: no key — add one in settings." },
   polled_at: 0,
 };
 
@@ -86,6 +98,12 @@ function formatResetAt(resetAt: number, nowSec: number): string {
 
 function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
+}
+
+function formatDeepSeekBalance(n: number, currency: string): string {
+  // Ponytail: assume USD for most users; prefix non-USD with the code.
+  const sym = currency.toUpperCase() === "USD" ? "$" : `${currency} `;
+  return `${sym}${n.toFixed(2)}`;
 }
 
 function nowSec(): number {
@@ -142,6 +160,10 @@ export default function App() {
     () => buildOpenRouterRow(status.openrouter),
     [status],
   );
+  const deepseekRow = useMemo(
+    () => buildDeepSeekRow(status.deepseek),
+    [status],
+  );
 
   return (
     <div className="popover">
@@ -149,6 +171,8 @@ export default function App() {
       <Row {...codexRow.secondary} />
       <div className="popover-divider" />
       <Row {...openrouterRow} />
+      <div className="popover-divider" />
+      <Row {...deepseekRow} />
       <div className="popover-footer">
         <button
           type="button"
@@ -239,6 +263,28 @@ function buildOpenRouterRow(or: OpenRouterStatus) {
     state: or.kind === "stale" ? ("stale" as const) : ("ok" as const),
     text: `${formatMoney(or.total_usage)} / ${formatMoney(or.total_credits)}`,
     caption: or.kind === "stale" ? or.message : undefined,
+  };
+}
+
+function buildDeepSeekRow(ds: DeepSeekStatus) {
+  if (ds.kind === "error") {
+    return {
+      label: "DeepSeek",
+      fill: undefined,
+      variant: "differentiated" as const,
+      state: "error" as const,
+      caption: ds.message,
+    };
+  }
+
+  return {
+    label: "DeepSeek",
+    badge: "balance",
+    fill: undefined, // no fill ratio — DeepSeek only returns remaining balance
+    variant: "differentiated" as const,
+    state: ds.kind === "stale" ? ("stale" as const) : ("ok" as const),
+    text: formatDeepSeekBalance(ds.total_balance, ds.currency),
+    caption: ds.kind === "stale" ? ds.message : undefined,
   };
 }
 

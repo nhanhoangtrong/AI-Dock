@@ -25,8 +25,8 @@ interface RowProps {
   text?: string;
   /** Plan badge shown between label and bar (e.g. "Plus"). */
   badge?: string;
-  /** Fill ratio [0, 100]. Ignored when `state` is "error". */
-  fill: number;
+  /** Fill ratio [0-100]. `undefined` means no bar rendered. */
+  fill?: number;
   variant: BarVariant;
   /** Display state. Drives the caption and whether the bar dims. */
   state: "ok" | "stale" | "error";
@@ -44,6 +44,7 @@ export function Row({
   caption,
 }: RowProps) {
   const dim = state === "stale";
+  const showBar = fill !== undefined;
   return (
     <div className={`row ${dim ? "row-dim" : ""}`}>
       <div className="row-header">
@@ -53,7 +54,7 @@ export function Row({
         </div>
         {text ? <div className="row-text">{text}</div> : null}
       </div>
-      {state === "error" ? null : <Bar variant={variant} fill={fill} />}
+      {state === "error" ? null : showBar ? <Bar variant={variant} fill={fill} /> : null}
       {caption ? (
         <div
           className={`row-caption ${

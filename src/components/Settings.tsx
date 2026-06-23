@@ -1,64 +1,91 @@
 /**
- * Settings.tsx — the OpenRouter key entry affordance (§1.4, §3).
+ * Settings.tsx — key entry for OpenRouter and DeepSeek credentials (§1.4, §3).
  *
- * The key never crosses back to the frontend after save (Rust re-reads the
- * config file on every poll). This component just sends the new value via
- * `invoke("set_openrouter_key", { key })`. The "saved" indicator is purely
- * a UI acknowledgement — no payload comes back.
+ * Keys never cross back to the frontend after save (Rust re-reads the config
+ * file on every poll). Each input has its own Save button; acknowledgment is
+ * purely a UI signal — no payload comes back.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./Settings.css";
 
-type View = "closed" | "open" | "saved";
+type View = "closed" | "open";
+type KeyTarget = "openrouter" | "deepseek" | null;
+
+interface KeyState {
+  draft: string;
+  saved: boolean;
+  error: string | null;
+}
+
+function emptyKey(): KeyState {
+  return { draft: "", saved: false, error: null };
+}
 
 export function Settings() {
   const [view, setView] = useState<View>("closed");
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [target, setTarget] = useState<KeyTarget>(null);
+  const [or, setOr] = useState<KeyState>(emptyKey);
+  const [ds, setDs] = useState<KeyState>(emptyKey);
 
-  // Autofocus when the field opens.
+  const orRef = useRef<HTMLInputElement | null>(null);
+  const dsRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
-    if (view === "open") {
-      inputRef.current?.focus();
-    }
-  }, [view]);
+    if (target === "openrouter") orRef.current?.focus();
+    else if (target === "deepseek") dsRef.current?.focus();
+  }, [target]);
 
   function open() {
-    setError(null);
-    setDraft("");
+    // Reset all draft/error state each time the panel opens.
+    setOr(emptyKey());
+    setDs(emptyKey());
+    setTarget(null);
     setView("open");
   }
 
   function close() {
     setView("closed");
-    setError(null);
-    setDraft("");
+    setTarget(null);
+    setOr(emptyKey());
+    setDs(emptyKey());
   }
 
-  async function save() {
-    const trimmed = draft.trim();
+  async function saveKey(
+    kind: "openrouter" | "deepseek",
+    value: string,
+    setter: (s: KeyState) => void,
+  ) {
+    const trimmed = value.trim();
     if (trimmed.length === 0) {
-      setError("Key cannot be empty");
+      setter({ draft: value, saved: false, error: "Key cannot be empty" });
       return;
     }
+    const cmd =
+      kind === "openrouter" ? "set_openrouter_key" : "set_deepseek_key";
     try {
-      await invoke("set_openrouter_key", { key: trimmed });
-      setView("saved");
-      setDraft("");
-      // Auto-collapse back to the icon after a beat.
-      window.setTimeout(() => setView("closed"), 1200);
-    } catch (e) {
-      setError(String(e));
+      await invoke(cmd, { key: trimmed });
+      setter({ draft: value, saved: true, error: null });
+      window.setTimeout(() => setter(emptyKey()), 1200);
+    } catch (e: unknown) {
+      setter({
+        draft: value,
+        saved: false,
+        error: String(e),
+      });
     }
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function onKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    kind: "openrouter" | "deepseek",
+    value: string,
+    setter: (s: KeyState) => void,
+  ) {
     if (e.key === "Enter") {
       e.preventDefault();
-      void save();
+      void saveKey(kind, value, setter);
     } else if (e.key === "Escape") {
       e.preventDefault();
       close();
@@ -70,7 +97,7 @@ export function Settings() {
       <button
         type="button"
         className="settings-toggle"
-        aria-label="OpenRouter settings"
+        aria-label="Settings"
         onClick={open}
       >
         <SettingsIcon />
@@ -78,11 +105,13 @@ export function Settings() {
     );
   }
 
-  // Open: render an overlay anchored to the popover (its closest positioned
-  // ancestor — see App.css .popover { position: relative }). The backdrop
-  // dismisses on click; the card itself centers the input.
   return (
-    <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="OpenRouter settings">
+    <div
+      className="settings-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Settings"
+    >
       <button
         type="button"
         className="settings-overlay-backdrop"
@@ -92,7 +121,7 @@ export function Settings() {
       />
       <div className="settings-card">
         <div className="settings-card-header">
-          <span className="settings-card-title">OpenRouter key</span>
+          <span className="settings-card-title">API keys</span>
           <button
             type="button"
             className="settings-card-close"
@@ -102,35 +131,79 @@ export function Settings() {
             ×
           </button>
         </div>
-        <label className="settings-label" htmlFor="openrouter-key">
-          Management key
-        </label>
-        <div className="settings-row">
-          <input
-            id="openrouter-key"
-            ref={inputRef}
-            type="password"
-            className="settings-input"
-            placeholder="sk-or-v1-..."
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onKeyDown}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button
-            type="button"
-            className="settings-save"
-            onClick={() => void save()}
-            disabled={view === "saved"}
-          >
-            {view === "saved" ? "Saved" : "Save"}
-          </button>
+
+        {/* ---- OpenRouter ---- */}
+        <div className="settings-section">
+          <label className="settings-label" htmlFor="or-key">
+            OpenRouter
+          </label>
+          <div className="settings-row">
+            <input
+              id="or-key"
+              ref={orRef}
+              type="password"
+              className="settings-input"
+              placeholder="sk-or-v1-..."
+              value={or.draft}
+              onChange={(e) => setOr({ draft: e.target.value, saved: false, error: null })}
+              onKeyDown={(e) => onKeyDown(e, "openrouter", or.draft, setOr)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="settings-save"
+              onClick={() => void saveKey("openrouter", or.draft, setOr)}
+              disabled={or.saved}
+            >
+              {or.saved ? "Saved" : "Save"}
+            </button>
+          </div>
+          {or.error ? <div className="settings-error">{or.error}</div> : null}
+          <div className="settings-hint">
+            Use a <strong>management key</strong> (not a chat key).
+          </div>
         </div>
-        {error ? <div className="settings-error">{error}</div> : null}
-        <div className="settings-hint">
-          Stored in <code>~/.config/ai-dock/config.json</code>. Use a
-          management key, not a chat key.
+
+        {/* ---- DeepSeek ---- */}
+        <div className="settings-section">
+          <label className="settings-label" htmlFor="ds-key">
+            DeepSeek
+          </label>
+          <div className="settings-row">
+            <input
+              id="ds-key"
+              ref={dsRef}
+              type="password"
+              className="settings-input"
+              placeholder="sk-..."
+              value={ds.draft}
+              onChange={(e) => setDs({ draft: e.target.value, saved: false, error: null })}
+              onKeyDown={(e) => onKeyDown(e, "deepseek", ds.draft, setDs)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="settings-save"
+              onClick={() => void saveKey("deepseek", ds.draft, setDs)}
+              disabled={ds.saved}
+            >
+              {ds.saved ? "Saved" : "Save"}
+            </button>
+          </div>
+          {ds.error ? <div className="settings-error">{ds.error}</div> : null}
+          <div className="settings-hint">
+            Your DeepSeek API key from{" "}
+            <a href="https://platform.deepseek.com" target="_blank" rel="noopener">
+              platform.deepseek.com
+            </a>
+            .
+          </div>
+        </div>
+
+        <div className="settings-footer-hint">
+          Stored in <code>~/.config/ai-dock/config.json</code>.
         </div>
       </div>
     </div>

@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub openrouter_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deepseek_key: Option<String>,
 }
 
 /// Path to the config file. Does not guarantee the file exists.

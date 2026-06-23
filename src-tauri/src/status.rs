@@ -16,6 +16,7 @@ use tokio::sync::Notify;
 
 use crate::codex::{self, CodexStatus};
 use crate::config;
+use crate::deepseek::{self, DeepSeekStatus};
 use crate::openrouter::{self, OpenRouterStatus};
 
 pub const EVENT: &str = "status-update";
@@ -26,10 +27,11 @@ pub const POLL_INTERVAL_SECS: u64 = 300;
 pub struct StatusUpdate {
     pub codex: CodexStatus,
     pub openrouter: OpenRouterStatus,
+    pub deepseek: DeepSeekStatus,
     pub polled_at: i64, // unix epoch seconds
 }
 
-/// Run one poll cycle: read Codex logs, fetch OpenRouter, emit `status-update`.
+/// Run one poll cycle: read Codex logs, fetch OpenRouter, fetch DeepSeek, emit `status-update`.
 pub async fn run_cycle(app: &AppHandle) -> StatusUpdate {
     // 1. Codex — synchronous SQLite read, off the async runtime to avoid
     //    blocking the executor for the whole duration.
@@ -39,15 +41,19 @@ pub async fn run_cycle(app: &AppHandle) -> StatusUpdate {
             message: format!("Codex: poll task panicked: {e}"),
         });
 
-    // 2. OpenRouter — re-read config so hand edits take effect.
+    // 2. OpenRouter + DeepSeek — re-read config so hand edits take effect.
     let cfg = config::read();
-    let key = cfg.openrouter_key.as_deref();
-    let or_status = openrouter::fetch(key).await;
+    let or_fut = openrouter::fetch(cfg.openrouter_key.as_deref());
+    let ds_fut = deepseek::fetch(cfg.deepseek_key.as_deref());
+
+    // Fire both fetches concurrently.
+    let (or_status, ds_status) = tokio::join!(or_fut, ds_fut);
 
     // 3. Build + emit.
     let update = StatusUpdate {
         codex: codex_status,
         openrouter: or_status,
+        deepseek: ds_status,
         polled_at: now_unix_secs(),
     };
 

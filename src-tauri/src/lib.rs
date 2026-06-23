@@ -14,6 +14,7 @@
 
 mod codex;
 mod config;
+mod deepseek;
 mod openrouter;
 mod status;
 
@@ -58,16 +59,29 @@ async fn refresh_now(
 }
 
 /// Persist a new OpenRouter management key. The key never crosses back to the
-/// frontend — Rust re-reads the config file on every poll (§3).
+/// frontend — Rust re-reads the config file on every poll (§3 in the spec).
 #[tauri::command]
 fn set_openrouter_key(key: String) -> Result<(), String> {
     let trimmed = key.trim();
     if trimmed.is_empty() {
         return Err("OpenRouter key cannot be empty".into());
     }
-    let cfg = config::Config {
-        openrouter_key: Some(trimmed.to_string()),
-    };
+    let mut cfg = config::read();
+    cfg.openrouter_key = Some(trimmed.to_string());
+    config::write(&cfg)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Persist a new DeepSeek API key.
+#[tauri::command]
+fn set_deepseek_key(key: String) -> Result<(), String> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err("DeepSeek key cannot be empty".into());
+    }
+    let mut cfg = config::read();
+    cfg.deepseek_key = Some(trimmed.to_string());
     config::write(&cfg)
         .map(|_| ())
         .map_err(|e| e.to_string())
@@ -100,6 +114,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             refresh_now,
             set_openrouter_key,
+            set_deepseek_key,
             hide_popover,
         ])
         .setup({
