@@ -87,8 +87,11 @@ fn set_deepseek_key(key: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Frontend-triggered hide, used for the Escape key (§1.3). The tray-click
-/// and blur paths hide directly without going through this command.
+/// Quit the application entirely.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
 #[tauri::command]
 fn hide_popover(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window(POPOVER_LABEL) {
@@ -115,6 +118,7 @@ pub fn run() {
             refresh_now,
             set_openrouter_key,
             set_deepseek_key,
+            quit_app,
             hide_popover,
         ])
         .setup({

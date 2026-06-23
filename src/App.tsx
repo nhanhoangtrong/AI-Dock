@@ -76,8 +76,14 @@ type StatusUpdate = {
 
 const EMPTY_PAYLOAD: StatusUpdate = {
   codex: { kind: "error", message: "Codex: no rate-limit data yet." },
-  openrouter: { kind: "error", message: "OpenRouter: no key — add one in settings." },
-  deepseek: { kind: "error", message: "DeepSeek: no key — add one in settings." },
+  openrouter: {
+    kind: "error",
+    message: "OpenRouter: no key — add one in settings.",
+  },
+  deepseek: {
+    kind: "error",
+    message: "DeepSeek: no key — add one in settings.",
+  },
   polled_at: 0,
 };
 
@@ -90,7 +96,10 @@ function formatResetAt(resetAt: number, nowSec: number): string {
   if (minutes < 60) return `resets in ${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const remMin = minutes % 60;
-  if (hours < 24) return remMin > 0 ? `resets in ${hours}h ${remMin}m` : `resets in ${hours}h`;
+  if (hours < 24)
+    return remMin > 0
+      ? `resets in ${hours}h ${remMin}m`
+      : `resets in ${hours}h`;
   const days = Math.floor(hours / 24);
   const remH = hours % 24;
   return remH > 0 ? `resets in ${days}d ${remH}h` : `resets in ${days}d`;
@@ -155,7 +164,10 @@ export default function App() {
 
   // ---- Derived view-model ----
 
-  const codexRow = useMemo(() => buildCodexRows(status.codex, nowSec()), [status]);
+  const codexRow = useMemo(
+    () => buildCodexRows(status.codex, nowSec()),
+    [status],
+  );
   const openrouterRow = useMemo(
     () => buildOpenRouterRow(status.openrouter),
     [status],
@@ -185,7 +197,18 @@ export default function App() {
           <RefreshIcon spinning={refreshing} />
           <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
         </button>
-        <Settings />
+        <div className="footer-actions">
+          <Settings />
+          <button
+            type="button"
+            className="quit-button"
+            onClick={() => void invoke("quit_app")}
+            aria-label="Quit"
+            title="Quit"
+          >
+            <QuitIcon />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -254,7 +277,8 @@ function buildOpenRouterRow(or: OpenRouterStatus) {
     };
   }
 
-  const pct = or.total_credits > 0 ? (or.total_usage / or.total_credits) * 100 : 0;
+  const pct =
+    or.total_credits > 0 ? (or.total_usage / or.total_credits) * 100 : 0;
   return {
     label: "OpenRouter",
     badge: "credits",
@@ -309,6 +333,27 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
     >
       <path d="M21 12a9 9 0 1 1-3.46-7.05" />
       <polyline points="21 4 21 10 15 10" />
+    </svg>
+  );
+}
+
+function QuitIcon() {
+  // Lucide "circle-arrow-out-up-right" — no icon library dependency.
+  return (
+    <svg
+      width="1em"
+      height="1em"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="lucide lucide-circle-arrow-out-up-right-icon lucide-circle-arrow-out-up-right"
+    >
+      <path d="M22 12A10 10 0 1 1 12 2" />
+      <path d="M22 2 12 12" />
+      <path d="M16 2h6v6" />
     </svg>
   );
 }
