@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai-dock tray icon (32x32 monochrome template).
+
+  Same three-bar motif as the bundle icon, but rendered as pure black with
+  transparent background. With `icon_as_template(true)` on the tray, macOS
+  uses the alpha channel as a mask and tints the glyph to match the active
+  menu-bar appearance (white on dark menu bars, black on light menu bars).
+
+  Coordinates are snapped to the 32x32 grid so the bars stay crisp at 18pt
+  (36px @2x retina) without anti-alias blur.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Top bar (short):  width 11, centered -->
+  <rect x="10.5" y="9.5"  width="11" height="3" rx="1.5" fill="#000000"/>
+  <!-- Middle bar (medium): width 16, centered -->
+  <rect x="8"    y="14.5" width="16" height="3" rx="1.5" fill="#000000"/>
+  <!-- Bottom bar (long): width 21, centered -->
+  <rect x="5.5"  y="19.5" width="21" height="3" rx="1.5" fill="#000000"/>
+</svg>

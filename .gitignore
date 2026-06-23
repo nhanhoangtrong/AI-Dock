@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Icon re-render scratch (SVG sources and preview PNGs)
+.icon-build/

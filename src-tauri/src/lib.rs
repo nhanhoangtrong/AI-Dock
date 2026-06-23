@@ -36,10 +36,13 @@ const TRAY_ID: &str = "main";
 /// the click → focus-loss round-trip on macOS.
 const JUST_TOGGLED_CLEAR_MS: u64 = 200;
 
-/// Tray icon baked into the binary at compile time. The spec defers the exact
-/// glyph design; we ship the existing 32×32 asset and render it as a macOS
-/// template image so the system treats it as a monochrome icon.
-const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/32x32.png");
+/// Tray icon baked into the binary at compile time.
+///
+/// A dedicated monochrome template (black with alpha) so macOS can tint it
+/// to match the active menu-bar appearance (white on dark menu bars, black
+/// on light). Distinct from `icons/32x32.png`, which stays a colourful bundle
+/// asset for the Finder/Dock.
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray.png");
 
 // ---------- Tauri commands ----------
 

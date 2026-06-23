@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai-dock bundle icon (1024x1024 source).
+
+  Concept: a glanceable "status panel" — three ascending-length rounded bars
+  sitting on a dark squircle. Mirrors the popover's three rows (Codex 5h,
+  Codex 7d, OpenRouter credits), in the same dark + accent-blue palette.
+
+  Color tokens match src/App.css:
+    @bg / @bg-elevated -> squircle gradient (#2c2c30 -> #1a1a1c)
+    @accent (#4f8cff)   -> bar gradient (#7ab1ff -> #4f8cff)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2c30"/>
+      <stop offset="1" stop-color="#1a1a1c"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ab1ff"/>
+      <stop offset="1" stop-color="#4f8cff"/>
+    </linearGradient>
+    <linearGradient id="bgSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230" fill="url(#bgSheen)"/>
+
+  <rect x="332" y="312" width="360" height="96" rx="48" ry="48" fill="url(#bar)"/>
+  <rect x="252" y="464" width="520" height="96" rx="48" ry="48" fill="url(#bar)"/>
+  <rect x="172" y="616" width="680" height="96" rx="48" ry="48" fill="url(#bar)"/>
+</svg>
