@@ -22,14 +22,14 @@ import "./App.css";
 
 // ---------- Payload types — mirror the Rust contract (§6) ----------
 
-type WindowStatus = {
+export type WindowStatus = {
   used_percent: number;
   window_minutes: number;
   reset_after_seconds: number;
   reset_at: number; // unix seconds
 };
 
-type CodexStatus =
+export type CodexStatus =
   | {
       kind: "ok";
       plan_type: string;
@@ -47,7 +47,7 @@ type CodexStatus =
       message: string;
     };
 
-type ClaudeStatus =
+export type ClaudeStatus =
   | {
       kind: "ok";
       five_hour: WindowStatus;
@@ -65,7 +65,7 @@ type ClaudeStatus =
       message: string;
     };
 
-type OpenRouterStatus =
+export type OpenRouterStatus =
   | {
       kind: "ok";
       total_credits: number;
@@ -81,7 +81,7 @@ type OpenRouterStatus =
       message: string;
     };
 
-type DeepSeekStatus =
+export type DeepSeekStatus =
   | { kind: "ok"; total_balance: number; currency: string }
   | { kind: "error"; message: string }
   | {
@@ -91,7 +91,7 @@ type DeepSeekStatus =
       message: string;
     };
 
-type StatusUpdate = {
+export type StatusUpdate = {
   codex: CodexStatus;
   claude: ClaudeStatus;
   openrouter: OpenRouterStatus;
@@ -118,7 +118,7 @@ const EMPTY_PAYLOAD: StatusUpdate = {
 
 // ---------- Formatting helpers ----------
 
-function formatResetAt(resetAt: number, nowSec: number): string {
+export function formatResetAt(resetAt: number, nowSec: number): string {
   const delta = resetAt - nowSec;
   if (delta <= 0) return "reset";
   const minutes = Math.floor(delta / 60);
@@ -134,11 +134,11 @@ function formatResetAt(resetAt: number, nowSec: number): string {
   return remH > 0 ? `resets in ${days}d ${remH}h` : `resets in ${days}d`;
 }
 
-function formatMoney(n: number): string {
+export function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function formatDeepSeekBalance(n: number, currency: string): string {
+export function formatDeepSeekBalance(n: number, currency: string): string {
   // Ponytail: assume USD for most users; prefix non-USD with the code.
   const sym = currency.toUpperCase() === "USD" ? "$" : `${currency} `;
   return `${sym}${n.toFixed(2)}`;
@@ -323,7 +323,7 @@ export default function App() {
 
 // ---------- Row builders ----------
 
-function buildCodexRows(codex: CodexStatus, now: number) {
+export function buildCodexRows(codex: CodexStatus, now: number) {
   if (codex.kind === "error") {
     return {
       primary: {
@@ -373,7 +373,7 @@ function buildCodexRows(codex: CodexStatus, now: number) {
   };
 }
 
-function buildOpenRouterRow(or: OpenRouterStatus) {
+export function buildOpenRouterRow(or: OpenRouterStatus) {
   if (or.kind === "error") {
     return {
       label: "OpenRouter",
@@ -397,7 +397,7 @@ function buildOpenRouterRow(or: OpenRouterStatus) {
   };
 }
 
-function buildClaudeRows(claude: ClaudeStatus, now: number) {
+export function buildClaudeRows(claude: ClaudeStatus, now: number) {
   if (claude.kind === "error") {
     return {
       fiveHour: {
@@ -446,7 +446,7 @@ function buildClaudeRows(claude: ClaudeStatus, now: number) {
   };
 }
 
-function buildDeepSeekRow(ds: DeepSeekStatus) {
+export function buildDeepSeekRow(ds: DeepSeekStatus) {
   if (ds.kind === "error") {
     return {
       label: "DeepSeek",
@@ -468,7 +468,7 @@ function buildDeepSeekRow(ds: DeepSeekStatus) {
   };
 }
 
-function titleCase(s: string): string {
+export function titleCase(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
