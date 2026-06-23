@@ -153,3 +153,7 @@ fn classify_transport(e: &reqwest::Error) -> DeepSeekStatus {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "deepseek_tests.rs"]
+mod tests;

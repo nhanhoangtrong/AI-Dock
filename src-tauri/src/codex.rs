@@ -221,3 +221,7 @@ pub fn read_latest() -> CodexStatus {
         },
     }
 }
+
+#[cfg(test)]
+#[path = "codex_tests.rs"]
+mod tests;

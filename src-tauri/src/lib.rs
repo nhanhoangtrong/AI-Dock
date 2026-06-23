@@ -346,14 +346,14 @@ fn position_under_tray(window: &tauri::WebviewWindow, rect: &tauri::Rect) {
 #[cfg(target_os = "macos")]
 fn move_window_to_active_space(window: &tauri::WebviewWindow) {
     use objc2::msg_send;
-    use objc2::runtime::Object;
+    use objc2::runtime::AnyObject;
 
     unsafe {
         let ns_window: *mut std::ffi::c_void = match window.ns_window() {
             Ok(p) => p,
             Err(_) => return,
         };
-        let ns_window = ns_window as *mut Object;
+        let ns_window = ns_window as *mut AnyObject;
         if !ns_window.is_null() {
             // NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1 = 2
             // NSWindowCollectionBehaviorManaged = 1 << 2 = 4

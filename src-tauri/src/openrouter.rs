@@ -143,3 +143,7 @@ fn classify_transport(e: &reqwest::Error) -> OpenRouterStatus {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "openrouter_tests.rs"]
+mod tests;

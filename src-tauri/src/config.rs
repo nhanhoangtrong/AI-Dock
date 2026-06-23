@@ -85,25 +85,5 @@ pub fn write(cfg: &Config) -> Result<PathBuf, String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn provider_visibility_defaults_to_showing_all_known_providers() {
-        let cfg = Config::default();
-
-        assert_eq!(cfg.provider_visibility("codex"), true);
-        assert_eq!(cfg.provider_visibility("claude"), true);
-        assert_eq!(cfg.provider_visibility("openrouter"), true);
-        assert_eq!(cfg.provider_visibility("deepseek"), true);
-    }
-
-    #[test]
-    fn provider_visibility_uses_explicit_saved_override() {
-        let mut cfg = Config::default();
-        cfg.set_provider_visibility("openrouter", false);
-
-        assert_eq!(cfg.provider_visibility("openrouter"), false);
-        assert_eq!(cfg.provider_visibility("codex"), true);
-    }
-}
+#[path = "config_tests.rs"]
+mod tests;
