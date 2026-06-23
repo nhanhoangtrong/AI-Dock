@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ai-docked",
+  "productName": "ai-dock",
   "version": "0.1.0",
-  "identifier": "com.nhanhoang.ai-docked",
+  "identifier": "com.nhanhoang.ai-dock",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -10,11 +10,26 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "ai-docked",
-        "width": 800,
-        "height": 600
+        "label": "popover",
+        "title": "ai-dock",
+        "width": 320,
+        "height": 240,
+        "minWidth": 320,
+        "minHeight": 240,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "visible": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "transparent": true,
+        "shadow": true
       }
     ],
     "security": {

@@ -1,0 +1,64 @@
+/* Row.css — one row of the popover. */
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row-dim {
+  /* Stale rows dim slightly so the new-and-correct state pops visually. */
+  opacity: 0.6;
+}
+
+.row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.row-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.row-label-text {
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.row-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.row-caption {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: normal;
+  margin-top: 2px;
+}
+
+.row-caption-error {
+  color: var(--accent-critical);
+}

@@ -1,14 +1,258 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+//! ai-dock — macOS menu-bar popover that surfaces Codex rate-limit status and
+//! OpenRouter credit balance.
+//!
+//! Architecture (per `docs/spec/2026-06-22-initial.md` §5):
+//!   - Rust owns the poll loop; the frontend never polls, fetches, or reads files.
+//!   - A tokio task wakes every `status::POLL_INTERVAL_SECS` and emits
+//!     `status-update` to the webview.
+//!   - Manual refresh (`refresh_now`) and tray-click both kick the loop via a
+//!     shared `Notify`.
+//!   - The tray icon is static; the popover toggles open on tray-click and
+//!     closes on blur, Escape, or tray-click-while-open. A short just-toggled
+//!     flag suppresses the blur that fires as part of the click itself, so the
+//!     popover doesn't close-then-immediately-reopen (§1.3 flicker guard).
+
+mod codex;
+mod config;
+mod openrouter;
+mod status;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+use tauri::{
+    image::Image,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, RunEvent, Size as DpiSize,
+    WindowEvent,
+};
+use tokio::sync::Notify;
+
+const POPOVER_LABEL: &str = "popover";
+const TRAY_ID: &str = "main";
+/// How long the just-toggled flag suppresses the blur that fires as part of
+/// the tray click itself. Short enough to feel instant; long enough to span
+/// the click → focus-loss round-trip on macOS.
+const JUST_TOGGLED_CLEAR_MS: u64 = 200;
+
+/// Tray icon baked into the binary at compile time. The spec defers the exact
+/// glyph design; we ship the existing 32×32 asset and render it as a macOS
+/// template image so the system treats it as a monochrome icon.
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/32x32.png");
+
+// ---------- Tauri commands ----------
+
+/// Force an immediate poll cycle. The frontend invokes this from the refresh
+/// button. The actual update flows back through the `status-update` event;
+/// the 5-minute timer is *not* reset (§5.2).
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+async fn refresh_now(
+    kick: tauri::State<'_, Arc<Notify>>,
+) -> Result<(), String> {
+    kick.notify_one();
+    Ok(())
 }
+
+/// Persist a new OpenRouter management key. The key never crosses back to the
+/// frontend — Rust re-reads the config file on every poll (§3).
+#[tauri::command]
+fn set_openrouter_key(key: String) -> Result<(), String> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err("OpenRouter key cannot be empty".into());
+    }
+    let cfg = config::Config {
+        openrouter_key: Some(trimmed.to_string()),
+    };
+    config::write(&cfg)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Frontend-triggered hide, used for the Escape key (§1.3). The tray-click
+/// and blur paths hide directly without going through this command.
+#[tauri::command]
+fn hide_popover(app: AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window(POPOVER_LABEL) {
+        w.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// ---------- App entry ----------
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Shared between the poll loop (consumer) and the refresh_now command /
+    // tray click (producers).
+    let kick = Arc::new(Notify::new());
+    // Set just before a tray-click-driven show/hide; cleared after a short
+    // delay. While set, WindowEvent::Focused(false) is ignored, which
+    // prevents the click → blur → close → reopen flicker (§1.3).
+    let just_toggled = Arc::new(AtomicBool::new(false));
+
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .manage(kick.clone())
+        .invoke_handler(tauri::generate_handler![
+            refresh_now,
+            set_openrouter_key,
+            hide_popover,
+        ])
+        .setup({
+            let kick = kick.clone();
+            let just_toggled = just_toggled.clone();
+            move |app| {
+                // LSUIElement equivalent: no dock icon, no Cmd-Tab entry (§5.4).
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                }
+
+                // 1. Static tray icon (no ambient signal — §1.2).
+                let icon = Image::from_bytes(TRAY_ICON_PNG)?;
+                let tray_jt = just_toggled.clone();
+                TrayIconBuilder::with_id(TRAY_ID)
+                    .icon(icon)
+                    .icon_as_template(true) // macOS treats it as a monochrome glyph
+                    .show_menu_on_left_click(false) // route left-click to on_tray_icon_event
+                    .on_tray_icon_event(move |tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            rect,
+                            ..
+                        } = event
+                        {
+                            toggle_popover(
+                                tray.app_handle(),
+                                &tray_jt,
+                                Some(rect),
+                            );
+                        }
+                    })
+                    .build(app)?;
+
+                // 2. Background poll loop. `kick` is shared with refresh_now.
+                status::spawn_loop(app.handle().clone(), kick.clone());
+
+                Ok(())
+            }
+        })
+        .on_window_event({
+            let just_toggled = just_toggled.clone();
+            move |window, event| {
+                // Only the popover window participates in the blur-hide behavior.
+                if window.label() != POPOVER_LABEL {
+                    return;
+                }
+                if let WindowEvent::Focused(false) = event {
+                    // The tray-click itself causes a blur; the flag swallows that
+                    // one so we don't immediately hide what we just (re)opened.
+                    if just_toggled.swap(false, Ordering::SeqCst) {
+                        return;
+                    }
+                    if let Err(e) = window.hide() {
+                        eprintln!("ai-dock: hide on blur failed: {e}");
+                    }
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(handle_run_event);
+}
+
+fn handle_run_event(_app: &AppHandle, event: RunEvent) {
+    // Currently no-op: the spec keeps the app alive without auto-launch (§1.5)
+    // and we don't intercept exit. Hook reserved for future graceful shutdown
+    // (e.g. flushing in-flight fetch state).
+    if let RunEvent::ExitRequested { .. } = event {
+        // let it exit; nothing to clean up.
+    }
+}
+
+// ---------- Popover lifecycle ----------
+
+fn toggle_popover(
+    app: &AppHandle,
+    just_toggled: &Arc<AtomicBool>,
+    rect: Option<tauri::Rect>,
+) {
+    let Some(window) = app.get_webview_window(POPOVER_LABEL) else {
+        eprintln!("ai-dock: popover window '{POPOVER_LABEL}' not found");
+        return;
+    };
+
+    let visible = window.is_visible().unwrap_or(false);
+
+    // Raise the flicker-guard flag *before* any show/hide, so the blur that
+    // fires as part of the click is swallowed by on_window_event.
+    just_toggled.store(true, Ordering::SeqCst);
+
+    if visible {
+        if let Err(e) = window.hide() {
+            eprintln!("ai-dock: hide failed: {e}");
+        }
+    } else {
+        if let Some(r) = rect {
+            position_under_tray(&window, &r);
+        }
+        if let Err(e) = window.show() {
+            eprintln!("ai-dock: show failed: {e}");
+        }
+        if let Err(e) = window.set_focus() {
+            eprintln!("ai-dock: set_focus failed: {e}");
+        }
+    }
+
+    // Clear the flag after a short delay. The blur event from the tray click
+    // lands well within this window on macOS; longer than that and we'd
+    // suppress legitimate blur-driven hides.
+    let jt = just_toggled.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(JUST_TOGGLED_CLEAR_MS)).await;
+        jt.store(false, Ordering::SeqCst);
+    });
+}
+
+/// Place the popover centered horizontally under the tray icon, just below it.
+/// Falls back to the current position if anything goes wrong.
+fn position_under_tray(window: &tauri::WebviewWindow, rect: &tauri::Rect) {
+    // TrayIconEvent::Click.rect carries physical pixels on macOS.
+    let (icon_x, icon_y, icon_w, icon_h) = match (rect.position, rect.size) {
+        (Position::Physical(p), DpiSize::Physical(s)) => (p.x, p.y, s.width, s.height),
+        (Position::Logical(p), DpiSize::Logical(s)) => (p.x as i32, p.y as i32, s.width as u32, s.height as u32),
+        // Mixed variants — coerce to physical via window scale factor.
+        _ => return,
+    };
+
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let win_size = window
+        .outer_size()
+        .unwrap_or(PhysicalSize::new(320, 240));
+
+    // Outer size is in physical pixels already; no extra scale factor here.
+    let pop_w = win_size.width as i32;
+    let pop_h = win_size.height as i32;
+    let _ = (scale, pop_h); // scale reserved for future logical sizing
+
+    let icon_center_x = icon_x + (icon_w as i32) / 2;
+    let icon_bottom_y = icon_y + icon_h as i32;
+
+    let mut x = icon_center_x - pop_w / 2;
+    let mut y = icon_bottom_y + 4;
+
+    // Keep on-screen with a small margin from the screen origin.
+    let margin = 8;
+    if x < margin {
+        x = margin;
+    }
+    if y < margin {
+        y = margin;
+    }
+
+    if let Err(e) = window.set_position(Position::Physical(PhysicalPosition::new(x, y))) {
+        eprintln!("ai-dock: set_position failed: {e}");
+    }
 }

@@ -1,0 +1,50 @@
+/* Bar.css — primitive progress bar.
+ *
+ * Two variants (§7.3):
+ *   - .bar-filled           — solid fill, color escalates near the cap.
+ *   - .bar-differentiated   — outline/ghost treatment for OpenRouter so it
+ *     doesn't read as a third Codex window.
+ */
+
+.bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Filled (Codex). Default neutral; ramps to amber, then red. */
+.bar-filled {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bar-filled-inner {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 240ms ease, background-color 200ms ease;
+}
+
+.bar-warn-high .bar-filled-inner {
+  background: var(--accent-warn);
+}
+
+.bar-warn-critical .bar-filled-inner {
+  background: var(--accent-critical);
+}
+
+/* Differentiated (OpenRouter). Outline + soft inner fill — reads as a
+ * distinct measurement rather than a third usage bar. */
+.bar-differentiated {
+  background: transparent;
+  border: 1px solid var(--accent-neutral);
+}
+
+.bar-differentiated-fill {
+  height: 100%;
+  background: var(--accent-neutral);
+  border-radius: 999px;
+  transition: width 240ms ease;
+}
