@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ai-dock",
+  "productName": "AI Dock",
   "version": "0.1.0",
   "identifier": "com.nhanhoang.ai-dock",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "popover",
-        "title": "ai-dock",
+        "title": "AI Dock",
         "width": 320,
         "height": 240,
         "minWidth": 320,
