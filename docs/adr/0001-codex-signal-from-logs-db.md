@@ -1,5 +1,7 @@
 # Read Codex rate-limit telemetry from the CLI logs database
 
+Status: Superseded by ADR-0005 for the primary Codex usage source.
+
 ## Context
 
 We need to surface the user's ChatGPT-plan Codex rate limits: plan type (Plus), two rolling windows (5h primary, 7d secondary), `used_percent` per window, and absolute reset timestamps. The ChatGPT backend-api (`chatgpt.com/backend-api`) can return this on demand, but it is undocumented and requires the CLI's OAuth access token on the wire.

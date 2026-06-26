@@ -22,7 +22,7 @@ Plus: a **manual refresh button**; a **settings affordance** for the OpenRouter 
 
 ## Data sources
 
-- **Codex:** read the latest `codex.rate_limits` event from `~/.codex/logs_2.sqlite`. Structured JSON: `plan_type`, `rate_limits.{allowed, limit_reached, primary, secondary}` each with `{used_percent, window_minutes, reset_after_seconds, reset_at}`. No network, no auth, no `~/.codex/auth.json` access. See ADR-0001.
+- **Codex:** call `GET https://chatgpt.com/backend-api/wham/usage` with the Codex CLI ChatGPT OAuth token. Structured JSON: `plan_type`, `rate_limit.{allowed, limit_reached, primary_window, secondary_window}` each with `{used_percent, limit_window_seconds, reset_after_seconds, reset_at}`. See ADR-0005.
 - **OpenRouter:** `GET https://openrouter.ai/api/v1/credits`, Bearer auth with a **management key** (not a chat key — the docs flag this endpoint as management-key-gated). Response: `{ data: { total_credits, total_usage } }`. Remaining is derived as `total_credits - total_usage`.
 - **DeepSeek:** account balance API using the user's DeepSeek API key from config. Displays remaining balance only.
 - **Claude Code:** `GET https://api.anthropic.com/api/oauth/usage` with Claude Code OAuth credentials and `anthropic-beta: oauth-2025-04-20`. Displays real `five_hour` and `seven_day` utilization and reset timestamps. This API is reverse-engineered and undocumented; see ADR-0004.
@@ -33,14 +33,14 @@ Plus: a **manual refresh button**; a **settings affordance** for the OpenRouter 
 
 ## Architecture
 
-- **Rust owns the poll loop.** A background `tokio` task polls every **5 min** (same interval for both sources), reads the Codex SQLite + fetches OpenRouter, and emits a `status-update` Tauri event with a combined payload.
+- **Rust owns the poll loop.** A background `tokio` task polls every **5 min** (same interval for all sources), fetches provider usage/balance data, and emits a `status-update` Tauri event with a combined payload.
 - **Frontend is a pure renderer.** Subscribes to `status-update`, renders the three rows, calls `invoke("refresh_now")` on the manual button. The OpenRouter key never crosses to the webview.
-- **Error/stale policy:** never render a number we don't have. Transient failures (network blip, SQLite locked) → dim the bar, show last-known value, caption underneath. Persistent/act-required failures (401 wrong key, Codex DB missing, schema changed) → error caption, no bar. Zero is never shown for a failed fetch.
+- **Error/stale policy:** never render a number we don't have. Transient failures (network blip, provider rate limit) → retry on the next poll. Persistent/act-required failures (wrong key, missing auth, schema changed) → error caption, no bar. Zero is never shown for a failed fetch.
 
 ## Stack
 
 - Tauri 2, React 19, TypeScript, Vite 7 — kept as-is from the boilerplate.
-- New Rust crates: `tokio` (runtime + interval), `reqwest` (OpenRouter), `rusqlite` or `sqlx` (Codex logs DB read), `serde`/`serde_json` (already present).
+- New Rust crates: `tokio` (runtime + interval), `reqwest` (provider HTTP calls), `serde`/`serde_json` (already present).
 - Cut from boilerplate: the `greet` command, `src/assets/react.svg`, the logo markup in `App.tsx`, `public/vite.svg`, `public/tauri.svg`, `tauri-plugin-opener` (we're not opening URLs).
 
 ## Proposed file layout
@@ -50,7 +50,7 @@ src-tauri/src/
   main.rs              # entry, unchanged
   lib.rs               # tauri::Builder with tray + background poll task
   config.rs            # read ~/.config/ai-dock/config.json
-  codex.rs             # query ~/.codex/logs_2.sqlite for latest rate_limits event
+  codex.rs             # read Codex auth and fetch ChatGPT wham usage
   openrouter.rs        # GET /api/v1/credits
   status.rs            # combined Status payload type + poll loop + emit status-update
   claude.rs            # read Claude Code OAuth credentials + GET /api/oauth/usage
@@ -73,7 +73,7 @@ CONTEXT.md
 
 - Exact OpenRouter bar differentiator (outline vs. neutral color vs. glyph) — pick whichever reads cleanest at popover size.
 - Codex bar color escalation thresholds (amber at 80%? red at 95%?).
-- Whether `rusqlite` (simpler, sync) or `sqlx` (async, already in Codex's own stack) for the logs read. Ponytail lean: `rusqlite` — fewer moving parts for a single read-only query.
+- Exact Codex reset-credit expiry and local spend tile behavior. Option 1 only surfaces live Session/Weekly usage plus reset-credit count when present.
 
 ## Icon asset
 
@@ -99,8 +99,8 @@ rsvg-convert -w 32 -h 32 src-tauri/icon-source/tray.svg  -o src-tauri/icons/tray
 | # | Decision | Source |
 |---|----------|--------|
 | Q3-Q4 | Codex signal = ChatGPT plan rate-limits, not API spend | session |
-| Q5 | Codex source = log-DB, not backend-api | ADR-0001 |
-| Q6 | Auth: read-only — dissolved; Codex side doesn't touch auth.json under (L) | ADR-0001 |
+| Q5 | Codex source = ChatGPT wham API | ADR-0005 |
+| Q6 | Auth: read Codex CLI ChatGPT OAuth and refresh once on 401/403 | ADR-0005 |
 | Q7 | Show both Primary + Secondary windows | CONTEXT.md |
 | Q8 | OpenRouter bar differentiated from Codex bars | ADR-0003 (supersedes 0002) |
 | Q9 | Static tray icon, no ambient signal | session |

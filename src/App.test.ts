@@ -43,6 +43,7 @@ const codexOk: CodexStatus = {
   primary: windowStatus(73, NOW + 1800),
   secondary: windowStatus(41, NOW + 86400),
   event_ts: NOW,
+  reset_credits_available: 2,
 };
 
 const codexError: CodexStatus = {
@@ -114,7 +115,7 @@ describe("buildCodexRows", () => {
       primary: { label: string; fill: number; variant: "filled"; state: "ok"; text: string };
       secondary: { label: string; fill: number; variant: "filled"; state: "ok"; text: string };
     };
-    expect(primary.label).toBe("Codex · 5h window");
+    expect(primary.label).toBe("Codex · Session");
     expect(primary.fill).toBe(73);
     expect(primary.variant).toBe("filled");
     expect(primary.state).toBe("ok");
@@ -124,6 +125,27 @@ describe("buildCodexRows", () => {
     expect(secondary.label).toBe("Codex · weekly window");
     expect(secondary.fill).toBe(41);
     expect(secondary.text).toContain("41%");
+    expect(rows.resetCredits?.text).toBe("2 available");
+  });
+
+  test("fresh unused session shows not started", () => {
+    const fresh: CodexStatus = {
+      kind: "ok",
+      plan_type: "plus",
+      primary: {
+        used_percent: 0,
+        window_minutes: 300,
+        reset_after_seconds: 17_980,
+        reset_at: NOW + 17_980,
+      },
+      secondary: windowStatus(41, NOW + 86400),
+      event_ts: NOW,
+    };
+
+    const rows = buildCodexRows(fresh, NOW);
+    const primary = rows.primary as { text: string };
+
+    expect(primary.text).toBe("0% · Not started");
   });
 
   test("error state: no fill, caption carries the message", () => {

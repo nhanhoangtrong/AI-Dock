@@ -36,6 +36,8 @@ export type CodexStatus =
       primary: WindowStatus;
       secondary: WindowStatus;
       event_ts: number;
+      reset_credits_available?: number;
+      extra_usage?: string;
     }
   | { kind: "error"; message: string }
   | {
@@ -45,6 +47,8 @@ export type CodexStatus =
       secondary: WindowStatus;
       event_ts: number;
       message: string;
+      reset_credits_available?: number;
+      extra_usage?: string;
     };
 
 export type ClaudeStatus =
@@ -253,6 +257,8 @@ export default function App() {
         <>
           <Row {...codexRow.primary} />
           <Row {...codexRow.secondary} />
+          {codexRow.resetCredits ? <Row {...codexRow.resetCredits} /> : null}
+          {codexRow.extraUsage ? <Row {...codexRow.extraUsage} /> : null}
         </>
       ),
     },
@@ -327,7 +333,7 @@ export function buildCodexRows(codex: CodexStatus, now: number) {
   if (codex.kind === "error") {
     return {
       primary: {
-        label: "Codex · 5h window",
+        label: "Codex · Session",
         fill: 0,
         variant: "filled" as const,
         state: "error" as const,
@@ -354,23 +360,49 @@ export function buildCodexRows(codex: CodexStatus, now: number) {
   return {
     primary: {
       ...base,
-      label: "Codex · 5h window",
+      label: "Codex · Session",
       fill: codex.primary.used_percent,
-      text: `${Math.round(codex.primary.used_percent)}% · ${formatResetAt(
-        codex.primary.reset_at,
-        now,
-      )}`,
+      text: formatUsageWindowText(codex.primary, now),
     },
     secondary: {
       ...base,
       label: "Codex · weekly window",
       fill: codex.secondary.used_percent,
-      text: `${Math.round(codex.secondary.used_percent)}% · ${formatResetAt(
-        codex.secondary.reset_at,
-        now,
-      )}`,
+      text: formatUsageWindowText(codex.secondary, now),
     },
+    resetCredits:
+      codex.reset_credits_available !== undefined
+        ? {
+            label: "Codex · Rate Limit Resets",
+            variant: "differentiated" as const,
+            state: base.state,
+            text: `${codex.reset_credits_available} available`,
+            caption: base.caption,
+          }
+        : undefined,
+    extraUsage: codex.extra_usage
+      ? {
+          label: "Codex · Extra Usage",
+          variant: "differentiated" as const,
+          state: base.state,
+          text: codex.extra_usage,
+          caption: base.caption,
+        }
+      : undefined,
   };
+}
+
+function formatUsageWindowText(window: WindowStatus, now: number): string {
+  if (
+    window.used_percent === 0 &&
+    window.reset_after_seconds + 60 >= window.window_minutes * 60
+  ) {
+    return "0% · Not started";
+  }
+  return `${Math.round(window.used_percent)}% · ${formatResetAt(
+    window.reset_at,
+    now,
+  )}`;
 }
 
 export function buildOpenRouterRow(or: OpenRouterStatus) {

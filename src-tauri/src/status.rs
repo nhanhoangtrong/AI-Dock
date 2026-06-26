@@ -33,25 +33,19 @@ pub struct StatusUpdate {
     pub polled_at: i64, // unix epoch seconds
 }
 
-/// Run one poll cycle: read Codex logs, fetch OpenRouter, fetch DeepSeek, emit `status-update`.
+/// Run one poll cycle: fetch provider statuses and emit `status-update`.
 pub async fn run_cycle(app: &AppHandle) -> StatusUpdate {
-    // 1. Codex — synchronous SQLite read, off the async runtime to avoid
-    //    blocking the executor for the whole duration.
-    let codex_status = tokio::task::spawn_blocking(codex::read_latest)
-        .await
-        .unwrap_or_else(|e| CodexStatus::Error {
-            message: format!("Codex: poll task panicked: {e}"),
-        });
-
-    // 2. OpenRouter + DeepSeek + Claude Code — re-read config so hand edits
-    //    take effect. Claude Code uses its own OAuth credential source.
+    // Re-read config so hand edits take effect. Codex and Claude Code use
+    // their own OAuth credential sources.
     let cfg = config::read();
+    let codex_fut = codex::fetch();
     let or_fut = openrouter::fetch(cfg.openrouter_key.as_deref());
     let ds_fut = deepseek::fetch(cfg.deepseek_key.as_deref());
     let claude_fut = claude::fetch();
 
     // Fire network fetches concurrently.
-    let (or_status, ds_status, claude_status) = tokio::join!(or_fut, ds_fut, claude_fut);
+    let (codex_status, or_status, ds_status, claude_status) =
+        tokio::join!(codex_fut, or_fut, ds_fut, claude_fut);
 
     // 3. Build + emit.
     let update = StatusUpdate {
